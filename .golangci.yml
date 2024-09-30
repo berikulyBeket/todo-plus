@@ -1,0 +1,32 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - gofmt
+    - ineffassign
+    - unused
+    - gosimple
+    - depguard
+
+linters-settings:
+  depguard:
+    rules:
+      prevent_unmaintained_packages:
+        list-mode: lax
+        files:
+          - $all
+          - "!$test"
+        allow:
+          - $gostd
+        deny:
+          - pkg: io/ioutil
+            desc: "Replaced by io and os packages since Go 1.16: https://tip.golang.org/doc/go1.16#ioutil"
+
+# Exclude common directories
+issues:
+  exclude-use-default: true

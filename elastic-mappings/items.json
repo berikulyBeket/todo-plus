@@ -1,0 +1,12 @@
+{
+	"mappings": {
+	  "properties": {
+		"id": { "type": "integer" },
+        "listId": { "type": "integer" },
+		"userId": { "type": "integer" },
+		"title": { "type": "text", "analyzer": "standard" },
+		"description": { "type": "text", "analyzer": "standard" },
+        "done": { "type": "boolean" }
+	  }
+	}
+}

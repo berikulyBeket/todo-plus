@@ -1,0 +1,331 @@
+services:
+  postgres:
+    container_name: postgres
+    image: postgres
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+      - ./ssl-certs/server.crt:/var/lib/postgresql/server.crt
+      - ./ssl-certs/server.key:/var/lib/postgresql/server.key
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - 5432:5432
+    command: postgres -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - default
+      - integration
+      - services
+
+  redis-master:
+    image: redis:latest
+    container_name: redis-master
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data/master:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_MASTER_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - default
+      - integration
+      - services
+
+  redis-slave-1:
+    image: redis:latest
+    container_name: redis-slave-1
+    depends_on:
+      - redis-master
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./redis-data/slave-1:/data
+      - ${REDIS_SLAVE_CONFIG_FILE}:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - default
+      - integration
+      - services
+
+  sentinel-1:
+    image: redis:latest
+    container_name: sentinel-1
+    depends_on:
+      - redis-master
+      - redis-slave-1
+    ports:
+      - "26379:26379"
+    volumes:
+      - ${SENTINEL_CONFIG_FILE}:/etc/sentinel.conf
+    command: redis-sentinel /etc/sentinel.conf
+    profiles:
+      - default
+      - integration
+      - services
+
+  sentinel-2:
+    image: redis:latest
+    container_name: sentinel-2
+    depends_on:
+      - redis-master
+      - redis-slave-1
+    ports:
+      - "26380:26379"
+    volumes:
+      - ${SENTINEL_CONFIG_FILE}:/etc/sentinel.conf
+    command: redis-sentinel /etc/sentinel.conf
+    profiles:
+      - default
+      - integration
+      - services
+
+  sentinel-3:
+    image: redis:latest
+    container_name: sentinel-3
+    depends_on:
+      - redis-master
+      - redis-slave-1
+    ports:
+      - "26381:26379"
+    volumes:
+      - ${SENTINEL_CONFIG_FILE}:/etc/sentinel.conf
+    command: redis-sentinel /etc/sentinel.conf
+    profiles:
+      - default
+      - integration
+      - services
+  
+  elastic-1:
+    image: elasticsearch:8.15.1
+    container_name: elastic-1
+    environment:
+      - node.name=elastic-1
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=elastic-2
+      - cluster.initial_master_nodes=elastic-1
+      - cluster.initial_master_nodes=elastic-1,elastic-2
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elastic-data/elastic-1:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - default
+      - integration
+      - services
+  
+  elastic-2:
+    image: elasticsearch:8.15.1
+    container_name: elastic-2
+    environment:
+      - node.name=elastic-2
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=elastic-1
+      - cluster.initial_master_nodes=elastic-1,elastic-2
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elastic-data/elastic-2:/usr/share/elasticsearch/data
+    ports:
+      - "9201:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - default
+      - integration
+      - services
+
+  zookeeper:
+    container_name: zookeeper
+    image: bitnami/zookeeper:latest
+    environment:
+      - ZOO_CLIENT_PORT=2181
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+    profiles:
+      - default
+      - integration
+      - services
+
+  kafka-1:
+    container_name: kafka-1
+    image: bitnami/kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka-1:9092,EXTERNAL://localhost:9092
+      - KAFKA_CFG_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+    ports:
+      - "9092:29092"
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--list", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    profiles:
+      - default
+      - integration
+      - services
+
+  kafka-2:
+    container_name: kafka-2
+    image: bitnami/kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      - KAFKA_BROKER_ID=2
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka-2:9092,EXTERNAL://localhost:9093
+      - KAFKA_CFG_LISTENERS=INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29093
+      - KAFKA_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+    ports:
+      - "9093:29093"
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--list", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    profiles:
+      - default
+      - integration
+      - services
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - 9090:9090
+    profiles:
+      - default
+      - services
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    profiles:
+      - default
+      - services
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    ports:
+      - "8081:8080"
+    environment:
+      - SWAGGER_JSON=/swagger/swagger.json
+    volumes:
+      - ./docs:/swagger
+    profiles:
+      - default
+      - services
+
+  app:
+    build: .
+    container_name: app
+    image: app
+    env_file:
+      - .env.dev
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-master:
+        condition: service_healthy
+      redis-slave-1:
+        condition: service_healthy
+      elastic-1:
+        condition: service_healthy
+      elastic-2:
+        condition: service_healthy
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://app:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    profiles:
+      - default
+      - integration
+
+  integration:
+    build:
+      context: .
+      dockerfile: integration-test/Dockerfile
+    container_name: integration
+    image: integration
+    env_file:
+      - .env.dev
+    depends_on:
+      app:
+        condition: service_healthy
+    profiles:
+      - integration
+
+volumes:
+  ssl-certs:
+  postgres-data:
+  prometheus-data:
+  redis-data:
+  elastic-data:
+  grafana-data:

@@ -1,0 +1,24 @@
+# IDE settings
+.idea/
+.vscode/
+
+# Ignore data directories for services
+postgres-data/
+redis-data/
+elastic-data/
+grafana-data/
+prometheus-data/
+ssl-certs/
+
+# Configuration files
+.env
+.env.dev
+/config/*.conf
+
+# Binary files for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
