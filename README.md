@@ -1,6 +1,10 @@
 
 # Todo Plus
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/berikulyBeket/todo-plus)](https://goreportcard.com/report/github.com/berikulyBeket/todo-plus)
+[![License](https://img.shields.io/github/license/berikulyBeket/todo-plus.svg)](https://github.com/berikulyBeket/todo-plus/blob/master/LICENSE)
+[![Release](https://img.shields.io/github/v/release/berikulyBeket/todo-plus.svg)](https://github.com/berikulyBeket/todo-plus/releases/)
+
 **Todo Plus** is a robust and scalable Golang application designed using modern architectural principles. It handles high performance and reliability at scale while maintaining a clean codebase. This application incorporates powerful features such as caching, logging, metrics, and advanced search services.
 
 Built to tackle real-world challenges, **Todo Plus** is configured with clusters for Redis (using Sentinel), Kafka, and Elasticsearch in master/replica setups, ensuring high availability and fault tolerance. Its modular design promotes simplicity and growth, allowing for easy client switching and extension.
